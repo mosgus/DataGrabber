@@ -1,4 +1,10 @@
 # YF.py
+"""
+Conceived on Mon Sep 8 2025
+
+@author: Gunnar B.
+"""
+
 '''
 This script prompts the user to input stock ticker symbols separated by commas.
 Each individual ticker is extracted and used to fetch stock data from Yahoo Finance.
@@ -26,9 +32,9 @@ def t0_interpret(t0_str):
             year += 2000
         t0_str = f"{year:04d}-{parts[1]}-{parts[2]}"
     return datetime.datetime.strptime(t0_str, "%Y-%m-%d")
-def get_dates():
+def get_dates(prompt=""):
     while True:
-        t0_str = input("Enter base date for new tick(s)(YYYY-MM-DD): ")
+        t0_str = input(prompt)
         try:
             t0 = t0_interpret(t0_str) # Interpret the input date
             tn = datetime.datetime.today() - datetime.timedelta(days=1)
@@ -130,14 +136,17 @@ if __name__ == "__main__":
             if sino == 'y':
                 tick2update = symbols[i]
                 symbols[i] = f"|>"
+                prompt = f"Enter {tick2update}.csv's NEW base date (YYYY-MM-DD): "
+                newDateA, newDateZ = get_dates(prompt)
+                print(f"{symbol}.csv will update data from {newDateA} to {newDateZ}")
 
     # Check if any non-flagged symbols remain
         active_symbols = [s for s in symbols if not s.startswith("|>")]
         if not active_symbols:
             print("No symbols to fetch data for.")
             exit()
-
-    t0, tn = get_dates()
+    prompt = f"Enter date range for {active_symbols} (YYYY-MM-DD): "
+    t0, tn = get_dates(prompt)
     print(f"Date Range: {t0} to {tn}")
 
     for symbol in symbols:
