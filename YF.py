@@ -111,21 +111,6 @@ def save_data(df, symbol):
     else:
         print(f"No data found for {symbol}, in given date range.")
 
-''' Get next trading day after given date '''
-import pandas_market_calendars as mcal
-nyse = mcal.get_calendar("NYSE")
-def get_next_trading_day(date):
-    d = pd.to_datetime(date)                          # convert str -> Timestamp
-    schedule = nyse.schedule(start_date=d, end_date=d + pd.Timedelta(days=7))
-    if schedule.empty:
-        raise ValueError(f"No trading days on or after {date}")
-    return schedule.index.min().date()                # or .strftime("%Y-%m-%d")
-def get_last_trading_day(date):
-    d = pd.to_datetime(date)
-    schedule = nyse.schedule(start_date=d - pd.Timedelta(days=7), end_date=d)
-    if schedule.empty:
-        raise ValueError(f"No trading days on or before {date}")
-    return schedule.index.max().date()
 ''' Handling EXISTING data '''
 def cp_del(csv_path: str, symbol: str) -> str:
     """
@@ -205,7 +190,21 @@ def validate_CSV_data(dateA, dateZ, symbol):
         return False
 
 
-
+''' Get next trading day after given date '''
+import pandas_market_calendars as mcal
+nyse = mcal.get_calendar("NYSE")
+def get_next_trading_day(date):
+    d = pd.to_datetime(date)                          # convert str -> Timestamp
+    schedule = nyse.schedule(start_date=d, end_date=d + pd.Timedelta(days=7))
+    if schedule.empty:
+        raise ValueError(f"No trading days on or after {date}")
+    return schedule.index.min().date()                # or .strftime("%Y-%m-%d")
+def get_last_trading_day(date):
+    d = pd.to_datetime(date)
+    schedule = nyse.schedule(start_date=d - pd.Timedelta(days=7), end_date=d)
+    if schedule.empty:
+        raise ValueError(f"No trading days on or before {date}")
+    return schedule.index.max().date()
 
 ''' Setup for updating existing data'''
 def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
@@ -215,11 +214,9 @@ def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
 
     if validate_CSV_data(dateA, dateZ, symbol):
         ''' VALID CSV DATA '''
-        # adjust newDateA and newDateZ to nearest valid trading days
+        # Fo nearest valid trading days. This is just for aesthetic prints.
         tDateA = get_next_trading_day(newDateA)      # returns a date
         tDateZ = get_last_trading_day(newDateZ)      # returns a date
-
-        # normalize everything to YYYY-MM-DD strings for a fair comparison
         tDateA_str = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
         tDateZ_str = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
 
@@ -227,7 +224,9 @@ def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
             print(f"No update needed for {symbol}.csv. Dates match.")
             return
         else:
-            print(f"Next trade day from {newDateA} = {tDateA_str}.\nLast trade day before {newDateZ} = {tDateZ_str}.")
+            print(f"Getting more data...")
+            print(f"\nNext trade day from {newDateA} = {tDateA_str}.\nLast trade day from {newDateZ} = {tDateZ_str}.")
+            # TODO:
 
     else:
         ''' INVALID CSV DATA '''
@@ -237,5 +236,6 @@ def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
         tDateA_str = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
         tDateZ_str = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
         print(f"Fetching NEW data for {symbol} from {tDateA_str} to {tDateZ_str}...")
-        df_new = fetch_data(symbol, newDateA, newDateZ)
+        end_exclusive = (pd.to_datetime(tDateZ_str) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        df_new = fetch_data(symbol, newDateA, end_exclusive)
         save_data(df_new, symbol)

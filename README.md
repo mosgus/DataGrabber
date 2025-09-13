@@ -8,7 +8,6 @@ A Python-based library of scripts for efficient data aggregation. Most API's tha
 ### Dependencies
 To run properly you must provide api keys for chatGPT and NewsAPI
 ```bash
-pip install textblob
 pip install yfinance --upgrade --no-cache-dir 
 ```
 ### How to Run

@@ -31,14 +31,14 @@ def YF():
     symbols = valid_ticks.copy()
     active_symbols = symbols[:]
 
-    time.sleep(1)
+    time.sleep(0.5)
 
     for i, symbol in enumerate(symbols):
         if has_data(symbol):
             dateA, dateZ = get_CSV_dates(symbol)
             print(f"Data from {dateA} to {dateZ} for {symbol}.csv exists in /data")
 
-            time.sleep(1)
+            time.sleep(0.5)
 
             while True:
                 sino = input(f"Update {symbol}.csv? (y/n): ").lower()
@@ -50,7 +50,7 @@ def YF():
                 active_symbols.remove(symbol)
                 print(f"Ignoring {symbol}.")
 
-                time.sleep(1)
+                time.sleep(0.5)
 
             if sino == 'y':
                 active_symbols.remove(symbol)
