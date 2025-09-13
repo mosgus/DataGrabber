@@ -206,7 +206,15 @@ def get_last_trading_day(date):
         raise ValueError(f"No trading days on or before {date}")
     return schedule.index.max().date()
 
-''' Setup for updating existing data'''
+''' Handle data prepending and/or appending '''
+def datapend(dateA, dateZ, tDateA, tDateZ, symbol):
+    # TODO: Handle if dateA = tDateA or dateZ = tDateZ( this should be an exclusive or because if both A and Z is a previosly handled case)
+    # TODO: Basically if dateA = tDateA we probably only append,if dateZ = tDateZ we probably only prepend.
+    # TODO: If both are different we need to do both prepend and append.
+    # TODO: get a prepend_df and/or an append_df and then concat them to the existing csv_df and save it.
+    pass
+
+''' Setup for updating EXISTING csv data'''
 def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
     print(f"Updating {symbol}.csv...")
     #print(f"old range: {dateA} to {dateZ}")
@@ -224,9 +232,9 @@ def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
             print(f"No update needed for {symbol}.csv. Dates match.")
             return
         else:
-            print(f"Getting more data...")
-            print(f"\nNext trade day from {newDateA} = {tDateA_str}.\nLast trade day from {newDateZ} = {tDateZ_str}.")
-            # TODO:
+            print(f"\nGetting more data...")
+            print(f"Next trade day from {newDateA} = {tDateA_str}.\nLast trade day from {newDateZ} = {tDateZ_str}.")
+            # TODO: Create datapend function to handle data to prepend and/or append
 
     else:
         ''' INVALID CSV DATA '''
