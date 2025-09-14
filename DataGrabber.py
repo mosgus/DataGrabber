@@ -1,92 +1,76 @@
-# DataGrabber.py
-
-import time # for sleep() aesthetic pauses
-
+import time
+import datetime
 from YF import (
-    get_tickers,
-    validate_tickers,
-    has_data,
-    get_CSV_dates,
-    get_dates,
-    update_setup,
-    fetch_data,
-    save_data,
-    run_symbol_flow
+    get_tickers, validate_tickers, has_data, get_CSV_dates,
+    update_setup, validate_CSV_data, t0_interpret  # if you want flexible date parsing
 )
 
 def YF():
-    """
-    Main function to drive the data grabbing process.
-    """
-    while True:
-        symbols = get_tickers()
-
-        time.sleep(0.25)
-
-        if not symbols:
-            continue
-        valid_ticks, invalid_ticks = validate_tickers(symbols)
-        if valid_ticks:
-            break
-
-    symbols = valid_ticks.copy()
-    active_symbols = symbols[:]
-
-    time.sleep(0.5)
-
-    for i, symbol in enumerate(symbols):
-        if has_data(symbol):
-            dateA, dateZ = get_CSV_dates(symbol)
-            print(f"Data from {dateA} to {dateZ} for {symbol}.csv exists in /data")
-
-            time.sleep(0.5)
-
-            while True:
-                sino = input(f"Update {symbol}.csv? (y/n): ").lower()
-                if sino in ['y', 'n']:
-                    break
-                print("Enter 'y' or 'n'.")
-
-            if sino == 'n':
-                active_symbols.remove(symbol)
-                print(f"Ignoring {symbol}.")
-
-                time.sleep(0.5)
-
-            if sino == 'y':
-                active_symbols.remove(symbol)
-                prompt = f"Enter {symbol}.csv's NEW base date (YYYY-MM-DD): "
-                newDateA, newDateZ = get_dates(prompt)
-
-                time.sleep(1)
-
-                print(f"{symbol}.csv will update data from {newDateA} to {newDateZ}")
-
-                update_setup(dateA, dateZ, newDateA, newDateZ, symbol)
-
-    if not active_symbols:
-        print("\ndone.")
+    # 1) Collect and validate symbols
+    symbols = get_tickers()
+    valid, invalid = validate_tickers(symbols)
+    if not valid:
+        print("No valid symbols entered. Exiting.")
         return
 
-    time.sleep(1)
+    # First pass: show status (and print CSV vs YF once here)
+    any_csv = False
+    cached_ranges = {}   # symbol -> (dateA, dateZ)
+    is_valid_map = {}    # symbol -> bool
 
-    prompt = f"Enter base date for {active_symbols} (YYYY-MM-DD): "
-    t0, tn = get_dates(prompt)
-    print(f"Date Range for new symbols: {t0} to {tn}")
+    for symbol in valid:
+        if has_data(symbol):
+            any_csv = True
+            dateA, dateZ = get_CSV_dates(symbol)
+            cached_ranges[symbol] = (dateA, dateZ)
+            print(f"Data from {dateA} to {dateZ} for {symbol}.csv exists in /data")
 
-    time.sleep(1)
-    for symbol in active_symbols:
-        print(f"Fetching data for {symbol}...")
-        df = fetch_data(symbol, t0, tn)
-        save_data(df, symbol)
+            # Validate ONCE here (this prints the comparison frames)
+            is_valid = validate_CSV_data(dateA, dateZ, symbol)
+            is_valid_map[symbol] = is_valid
+
+            if is_valid:
+                print("Cached CSV is VALID.")
+            else:
+                print("Cached CSV is INVALID and will be replaced if you choose to update.")
+        else:
+            print(f"No cached CSV for {symbol}.")
+            # default to False for symbols without a file (so update triggers full refresh)
+            is_valid_map[symbol] = False
+
+    # Global decision and shared date input
+    if any_csv:
+        choice = input("Update the CSV file(s)? (y/n): ").strip().lower()
+        if choice not in ("y", "yes"):
+            print("Exiting without updating.")
+            return
+        # Optional: flexible parsing like '25 1 1'
+        newDateA_raw = input("Enter NEW base date for all symbols (YYYY-MM-DD or 'YY M D'): ").strip()
+        newDateA = t0_interpret(newDateA_raw).strftime("%Y-%m-%d")
+    else:
+        newDateA_raw = input("Enter base date for all symbols (YYYY-MM-DD or 'YY M D'): ").strip()
+        newDateA = t0_interpret(newDateA_raw).strftime("%Y-%m-%d")
+
+    newDateZ = datetime.datetime.today().strftime("%Y-%m-%d")
+
+    # Second pass: perform updates WITHOUT calling validate again
+    for symbol in valid:
+        if symbol in cached_ranges:
+            dateA, dateZ = cached_ranges[symbol]
+        else:
+            # No CSV existed; pass placeholders so update_setup has something for the signature
+            dateA, dateZ = newDateA, newDateA
+
+        update_setup(
+            dateA, dateZ,          # current cached range (or placeholder)
+            newDateA, newDateZ,    # target span (shared)
+            symbol,
+            is_valid_map[symbol]   # CHANGED: pass the first-pass result so update_setup won't re-validate
+        )
 
 def main():
-    tickers = input("Enter tickers separated by commas: ").split(",")
-    tickers = [t.strip().upper() for t in tickers]
-
-    for symbol in tickers:
-        run_symbol_flow(symbol)
+    pass
 
 if __name__ == "__main__":
     YF()
-    #main()
+    # main()

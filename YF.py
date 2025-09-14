@@ -125,7 +125,6 @@ def cp_del(csv_path: str, symbol: str) -> str:
     shutil.copy2(csv_path, backup_path)  # Copy with metadata
     os.remove(csv_path) # Remove original
     return backup_path
-
 def validate_CSV_data(dateA, dateZ, symbol):
     """
     Compares CSV close and adj close prices for all quarters between
@@ -134,7 +133,7 @@ def validate_CSV_data(dateA, dateZ, symbol):
     does rarely get corrupted or edited too, so it's worth as a safeguard.
     """
     csv_path = os.path.join("data", f"{symbol}.csv")
-    print(f"Validating data in {csv_path} from {dateA} to {dateZ}...")
+    print(f"\nValidating data in {csv_path} from {dateA} to {dateZ}...")
     start_date = pd.to_datetime(dateA)
     end_date = pd.to_datetime(dateZ)
     # Just check one date in the range
@@ -166,24 +165,18 @@ def validate_CSV_data(dateA, dateZ, symbol):
     # --- Check if data matches ---
     csv_data = csv_data.sort_index()
     yf_data = yf_data.sort_index()
-
     csv_adj = csv_data["Adj Close"].astype(float)
     yf_adj = yf_data["Adj Close"].astype(float)
 
-    tolerance = 0.000001  # tighten as needed, or set to 0.01 for 1 cent
-    comparison = np.isclose(
-        csv_adj,
-        yf_adj,
-        atol=tolerance,
-        rtol=0.0  # 🔑 disable relative tolerance
-    )
+    tolerance = 0.000001  # tighten as needed 🔑
+    comparison = np.isclose(csv_adj, yf_adj, atol=tolerance, rtol=0.0)
     all_match = bool(comparison.all())
 
     if all_match:
-        print(f"Adj_Price in {symbol}.csv is VALID by +/- {tolerance} minimum.")
+        print(f"\nAdj_Price in {symbol}.csv is VALID by +/- {tolerance} minimum.")
         return True
     else: # Copy's old date as "<symbol>OLD.csv" and prepares new file.
-        print(f"Adj_Price  in {symbol}.csv is OUTDATED by +/- {tolerance} minimum.")
+        print(f"\nAdj_Price  in {symbol}.csv is OUTDATED by +/- {tolerance} minimum.")
         backup_path = cp_del(csv_path, symbol)
         print(f"Old data copied to {backup_path} and removed {csv_path}.")
         return False
@@ -274,76 +267,35 @@ def datapend(dateA, dateZ, tDateA, tDateZ, symbol):
 
     os.makedirs("data", exist_ok=True)
     combined.to_csv(csv_path, index=False)
-    print(f"Stitched 'cached data' with 'new/additional data'\n saved  @ {csv_path}")
+    print(f"Stitched 'cached data' with 'new/additional data'\nsaved  @ {csv_path}")
 
 ''' Setup for updating EXISTING csv data'''
-def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
+def update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
     print(f"Updating {symbol}.csv...")
-    #print(f"old range: {dateA} to {dateZ}")
-    #print(f"new range: {newDateA} to {newDateZ}")
 
-    if validate_CSV_data(dateA, dateZ, symbol):
+    if is_valid_cached:
         ''' VALID CSV DATA '''
-        # Fo nearest valid trading days. This is just for aesthetic prints.
-        tDateA = get_next_trading_day(newDateA)      # returns a date
-        tDateZ = get_last_trading_day(newDateZ)      # returns a date
+        # nearest valid trading days (aesthetic prints + correct bounds)
+        tDateA = get_next_trading_day(newDateA)
+        tDateZ = get_last_trading_day(newDateZ)
         tDateA_str = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
         tDateZ_str = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
 
         if (dateA == tDateA_str and dateZ == tDateZ_str):
-            print(f"\nNo update needed for {symbol}.csv. Dates match.")
+            print(f"No update needed for {symbol}.csv. Dates match.")
             return
         else:
             print(f"\nGetting more data...")
             print(f"Next trade day from {newDateA} = {tDateA_str}.\nLast trade day from {newDateZ} = {tDateZ_str}.")
-            # Handle prepend/append as needed
             datapend(dateA, dateZ, tDateA_str, tDateZ_str, symbol)
     else:
         ''' INVALID CSV DATA '''
-        # also adjust dates when invalid
         tDateA = get_next_trading_day(newDateA)
         tDateZ = get_last_trading_day(newDateZ)
         tDateA_str = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
         tDateZ_str = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
         print(f"Fetching NEW data for {symbol} from {tDateA_str} to {tDateZ_str}...")
+        # end is EXCLUSIVE in yfinance; add +1 day to include tDateZ
         end_exclusive = (pd.to_datetime(tDateZ_str) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-        df_new = fetch_data(symbol, newDateA, end_exclusive)
+        df_new = fetch_data(symbol, tDateA_str, end_exclusive)
         save_data(df_new, symbol)
-
-def run_symbol_flow(symbol):
-    """
-    Full control flow for a single ticker:
-    1. Check if CSV exists.
-    2. Validate cached data.
-    3. Prompt for new date range.
-    4. Either exit (no update), datapend (partial update), or refresh (invalid).
-    """
-
-    csv_path = os.path.join("data", f"{symbol}.csv")
-    if os.path.exists(csv_path):
-        print(f"Found cached data for {symbol}: {csv_path}")
-        # Extract min/max dates from CSV
-        df = pd.read_csv(csv_path, parse_dates=["Date"])
-        dateA, dateZ = df["Date"].min().strftime("%Y-%m-%d"), df["Date"].max().strftime("%Y-%m-%d")
-
-        if validate_CSV_data(dateA, dateZ, symbol):
-            print(f"{symbol}.csv is VALID, covers {dateA} → {dateZ}")
-        else:
-            print(f"{symbol}.csv is INVALID, refreshing full data…")
-            newDateA = input("Enter start date (YYYY-MM-DD): ")
-            newDateZ = input("Enter end date (YYYY-MM-DD): ")
-            df_new = fetch_data(symbol, newDateA, newDateZ)
-            save_data(df_new, symbol)
-            return
-    else:
-        print(f"No CSV for {symbol}, will fetch fresh data.")
-        newDateA = input("Enter start date (YYYY-MM-DD): ")
-        newDateZ = input("Enter end date (YYYY-MM-DD): ")
-        df_new = fetch_data(symbol, newDateA, newDateZ)
-        save_data(df_new, symbol)
-        return
-
-    # If here, CSV exists and is valid — maybe need update
-    newDateA = input("Enter new start date (YYYY-MM-DD): ")
-    newDateZ = input("Enter new end date (YYYY-MM-DD): ")
-    update_setup(symbol, dateA, dateZ, newDateA, newDateZ, newDateA, newDateZ)
