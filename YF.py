@@ -98,15 +98,21 @@ def fetch_data(symbol, t0, tn):
 def save_data(df, symbol):
     if not df.empty:
         if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)  # Get first level of column names
+            df.columns = df.columns.get_level_values(0)  # flatten
 
-        df = df.reset_index()  # Make 'Date' a column
-        expected_columns = ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"]
-        available_columns = [col for col in expected_columns if col in df.columns]
-        df = df[available_columns]
+        df = df.reset_index()
+        expected = ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"]
+        keep = [c for c in expected if c in df.columns]
+        df = df[keep]
+
         os.makedirs("data", exist_ok=True)
         filename = os.path.join("data", f"{symbol}.csv")
-        df.to_csv(filename, index=False, header=True)
+        tmpname = os.path.join("data", f".{symbol}.csv.tmp")
+
+        # Write with high precision so 1e-5 deltas survive round-trip
+        df.to_csv(tmpname, index=False, header=True, float_format="%.14f")
+
+        os.replace(tmpname, filename)  # atomic on POSIX
         print(f"{filename} saved...")
     else:
         print(f"No data found for {symbol}, in given date range.")
@@ -177,8 +183,8 @@ def validate_CSV_data(dateA, dateZ, symbol):
         return True
     else: # Copy's old date as "<symbol>OLD.csv" and prepares new file.
         print(f"\nAdj_Price  in {symbol}.csv is OUTDATED by +/- {tolerance} minimum.")
-        backup_path = cp_del(csv_path, symbol)
-        print(f"Old data copied to {backup_path} and removed {csv_path}.")
+        #backup_path = cp_del(csv_path, symbol)
+        #print(f"Old data copied to {backup_path} and removed {csv_path}.")
         return False
 
 
@@ -267,35 +273,69 @@ def datapend(dateA, dateZ, tDateA, tDateZ, symbol):
 
     os.makedirs("data", exist_ok=True)
     combined.to_csv(csv_path, index=False)
-    print(f"Stitched 'cached data' with 'new/additional data'\nsaved  @ {csv_path}")
+    print(f"Stitched 'cached data' with 'new/additional data'\nsaved @ {csv_path}")
 
 ''' Setup for updating EXISTING csv data'''
 def update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
-    print(f"Updating {symbol}.csv...")
+    print(f"Handling {symbol}.csv...")
+    tDateA = get_next_trading_day(newDateA)
+    tDateZ = get_last_trading_day(newDateZ)
+    tDateA_str = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
+    tDateZ_str = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
 
     if is_valid_cached:
         ''' VALID CSV DATA '''
-        # nearest valid trading days (aesthetic prints + correct bounds)
-        tDateA = get_next_trading_day(newDateA)
-        tDateZ = get_last_trading_day(newDateZ)
-        tDateA_str = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
-        tDateZ_str = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
-
         if (dateA == tDateA_str and dateZ == tDateZ_str):
             print(f"No update needed for {symbol}.csv. Dates match.")
             return
         else:
             print(f"\nGetting more data...")
             print(f"Next trade day from {newDateA} = {tDateA_str}.\nLast trade day from {newDateZ} = {tDateZ_str}.")
+            # Only stitch if the cache exists and is valid
             datapend(dateA, dateZ, tDateA_str, tDateZ_str, symbol)
     else:
-        ''' INVALID CSV DATA '''
-        tDateA = get_next_trading_day(newDateA)
-        tDateZ = get_last_trading_day(newDateZ)
-        tDateA_str = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
-        tDateZ_str = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
-        print(f"Fetching NEW data for {symbol} from {tDateA_str} to {tDateZ_str}...")
-        # end is EXCLUSIVE in yfinance; add +1 day to include tDateZ
+        ''' INVALID or NO CSV DATA → full data grab '''
+        print(f"Fetching NEW {symbol} data from {tDateA_str} to {tDateZ_str}...")
         end_exclusive = (pd.to_datetime(tDateZ_str) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
         df_new = fetch_data(symbol, tDateA_str, end_exclusive)
+
+        if df_new is None or df_new.empty:
+            print(f"New fetch for {symbol} returned no rows. Aborting replace; keeping existing files.")
+            return
+
+        # Keep previous CSV in memory for a precise delta print
+        csv_path = os.path.join("data", f"{symbol}.csv")
+        old_df = None
+        if os.path.exists(csv_path):
+            try:
+                old_df = pd.read_csv(csv_path, parse_dates=["Date"]).set_index("Date")
+            except Exception:
+                old_df = None
+
+        # Back up AFTER a successful fetch
+        if os.path.exists(csv_path):
+            backup_path = cp_del(csv_path, symbol)
+            print(f"Backed up old CSV to {backup_path}")
+
+        # Save new with high precision (save_data uses float_format="%.9f")
         save_data(df_new, symbol)
+
+        # --- Post-save verification at the anchor date ---
+        try:
+            new_df = pd.read_csv(csv_path, parse_dates=["Date"]).set_index("Date")
+            # Use the same anchor you validated on: the cached file’s dateA if it existed,
+            # otherwise the new tDateA (for the first file ever).
+            anchor = pd.to_datetime(dateA) if old_df is not None else pd.to_datetime(tDateA_str)
+
+            if anchor in new_df.index:
+                new_adj = float(new_df.loc[anchor, "Adj Close"])
+                if old_df is not None and anchor in old_df.index:
+                    old_adj = float(old_df.loc[anchor, "Adj Close"])
+                    delta = new_adj - old_adj
+                    print(f"Post-save check @ {anchor.date()}: old Adj={old_adj:.9f}, new Adj={new_adj:.9f}, Δ={delta:.9f}")
+                else:
+                    print(f"Post-save check @ {anchor.date()}: new Adj={new_adj:.9f}")
+            else:
+                print(f"Post-save check: anchor {anchor.date()} is not in the new CSV (start date changed).")
+        except Exception as e:
+            print(f"Post-save check skipped: {e}")
