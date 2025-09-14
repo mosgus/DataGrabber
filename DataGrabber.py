@@ -10,7 +10,8 @@ from YF import (
     get_dates,
     update_setup,
     fetch_data,
-    save_data
+    save_data,
+    run_symbol_flow
 )
 
 def YF():
@@ -80,12 +81,12 @@ def YF():
         save_data(df, symbol)
 
 def main():
-    choice = input(f"Run YF Data Grabber? (y/n): ").lower()
-    if choice == 'y':
-        YF()
-    else:
-        print("Exiting...")
+    tickers = input("Enter tickers separated by commas: ").split(",")
+    tickers = [t.strip().upper() for t in tickers]
 
+    for symbol in tickers:
+        run_symbol_flow(symbol)
 
 if __name__ == "__main__":
     YF()
+    #main()

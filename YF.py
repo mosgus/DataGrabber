@@ -92,7 +92,7 @@ def get_CSV_dates(symbol):
 
 ''' Fetch data for NEW ticker '''
 def fetch_data(symbol, t0, tn):
-    df = yf.download(symbol, start=t0, end=tn, auto_adjust=False) # FYI auto_adjust for dividends and splits makes Adj Close redundant data.
+    df = yf.download(symbol, start=t0, end=tn, auto_adjust=False, progress=False) # FYI auto_adjust is for splits/divs. Progress is the red printed msg.
     return df
 ''' Save data as NEW CSV file '''
 def save_data(df, symbol):
@@ -137,7 +137,7 @@ def validate_CSV_data(dateA, dateZ, symbol):
     print(f"Validating data in {csv_path} from {dateA} to {dateZ}...")
     start_date = pd.to_datetime(dateA)
     end_date = pd.to_datetime(dateZ)
-
+    # Just check one date in the range
     check_date = pd.to_datetime(dateA).normalize()
     check_dates = pd.DatetimeIndex([check_date])
 
@@ -309,3 +309,41 @@ def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
         end_exclusive = (pd.to_datetime(tDateZ_str) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
         df_new = fetch_data(symbol, newDateA, end_exclusive)
         save_data(df_new, symbol)
+
+def run_symbol_flow(symbol):
+    """
+    Full control flow for a single ticker:
+    1. Check if CSV exists.
+    2. Validate cached data.
+    3. Prompt for new date range.
+    4. Either exit (no update), datapend (partial update), or refresh (invalid).
+    """
+
+    csv_path = os.path.join("data", f"{symbol}.csv")
+    if os.path.exists(csv_path):
+        print(f"Found cached data for {symbol}: {csv_path}")
+        # Extract min/max dates from CSV
+        df = pd.read_csv(csv_path, parse_dates=["Date"])
+        dateA, dateZ = df["Date"].min().strftime("%Y-%m-%d"), df["Date"].max().strftime("%Y-%m-%d")
+
+        if validate_CSV_data(dateA, dateZ, symbol):
+            print(f"{symbol}.csv is VALID, covers {dateA} → {dateZ}")
+        else:
+            print(f"{symbol}.csv is INVALID, refreshing full data…")
+            newDateA = input("Enter start date (YYYY-MM-DD): ")
+            newDateZ = input("Enter end date (YYYY-MM-DD): ")
+            df_new = fetch_data(symbol, newDateA, newDateZ)
+            save_data(df_new, symbol)
+            return
+    else:
+        print(f"No CSV for {symbol}, will fetch fresh data.")
+        newDateA = input("Enter start date (YYYY-MM-DD): ")
+        newDateZ = input("Enter end date (YYYY-MM-DD): ")
+        df_new = fetch_data(symbol, newDateA, newDateZ)
+        save_data(df_new, symbol)
+        return
+
+    # If here, CSV exists and is valid — maybe need update
+    newDateA = input("Enter new start date (YYYY-MM-DD): ")
+    newDateZ = input("Enter new end date (YYYY-MM-DD): ")
+    update_setup(symbol, dateA, dateZ, newDateA, newDateZ, newDateA, newDateZ)
