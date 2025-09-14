@@ -5,8 +5,8 @@ A Python-based library of scripts for efficient data aggregation. Most API's tha
 
 ### Features ⛮
 + **Data Efficiency**
-+        Existing CSVs in /data are reused and only missing ranges are fetched 🟣
-+        Data is backed up to /data/<symbol>_OLD.csv before being replaced 🟣
+        * Existing CSVs in /data are reused and only missing ranges are fetched 🟣
+        * Data is backed up to /data/<symbol>_OLD.csv before being replaced 🟣
 - **Validation**:
         
            
