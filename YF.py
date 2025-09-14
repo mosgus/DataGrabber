@@ -1,25 +1,21 @@
 # YF.py
 """
-Conceived on Mon Sep 8 2025
-Birthed on
-@author: Gunnar B.
+    Conceived on Mon Sep 8 2025
+    Birthed on
+    @author: Gunnar B.
+
+    This script prompts the user to input stock ticker symbols separated by commas.
+    Each individual ticker is extracted and used to fetch stock data from Yahoo Finance.
+    Stock data is processed and saved as CSV files for further analysis.
 """
 
-'''
-This script prompts the user to input stock ticker symbols separated by commas.
-Each individual ticker is extracted and used to fetch stock data from Yahoo Finance.
-Stock data is processed and saved as CSV files for further analysis.
-'''
 import datetime
 import yfinance as yf
 import pandas as pd
 import os
 import shutil
-
 import numpy as np
-
 import time # for sleep() aesthetic pauses
-
 ''' ticker inputs'''
 def get_tickers():
     tickers = input ("Enter stock ticker(s) separated by commas: ").upper()
@@ -70,12 +66,10 @@ def validate_tickers(symbols):
     if invalid_ticks:
         print(f"ERROR: Invalid symbol(s) --> {invalid_ticks}")
     if valid_ticks:  # If we have at least one valid symbol, proceed
-        print(f"Accepted symbols: {valid_ticks}")
+        print(f"Accepted symbols: {valid_ticks}\n")
     else:
         print("No valid symbols entered. Please try again.")
     return valid_ticks, invalid_ticks
-
-
 ''' Check if ticker data EXISTS in /data '''
 def has_data(symbol):
     #filename = os.path.join("data", f"{symbol}.csv")
@@ -89,7 +83,6 @@ def get_CSV_dates(symbol):
     t0 = df['Date'].min().strftime("%Y-%m-%d")
     tn = df['Date'].max().strftime("%Y-%m-%d")
     return t0, tn
-
 ''' Fetch data for NEW ticker '''
 def fetch_data(symbol, t0, tn):
     df = yf.download(symbol, start=t0, end=tn, auto_adjust=False, progress=False) # FYI auto_adjust is for splits/divs. Progress is the red printed msg.
@@ -116,7 +109,6 @@ def save_data(df, symbol):
         print(f"{filename} saved...")
     else:
         print(f"No data found for {symbol}, in given date range.")
-
 ''' Handling EXISTING data '''
 def cp_del(csv_path: str, symbol: str) -> str:
     """
@@ -139,7 +131,7 @@ def validate_CSV_data(dateA, dateZ, symbol):
     does rarely get corrupted or edited too, so it's worth as a safeguard.
     """
     csv_path = os.path.join("data", f"{symbol}.csv")
-    print(f"\nValidating data in {csv_path} from {dateA} to {dateZ}...")
+    print(f"Validating data in {csv_path} from {dateA} to {dateZ}...\n")
     start_date = pd.to_datetime(dateA)
     end_date = pd.to_datetime(dateZ)
     # Just check one date in the range
@@ -183,11 +175,7 @@ def validate_CSV_data(dateA, dateZ, symbol):
         return True
     else: # Copy's old date as "<symbol>OLD.csv" and prepares new file.
         print(f"\nAdj_Price  in {symbol}.csv is OUTDATED by +/- {tolerance} minimum.")
-        #backup_path = cp_del(csv_path, symbol)
-        #print(f"Old data copied to {backup_path} and removed {csv_path}.")
         return False
-
-
 ''' Get next trading day after given date '''
 import pandas_market_calendars as mcal
 nyse = mcal.get_calendar("NYSE")
@@ -203,7 +191,6 @@ def get_last_trading_day(date):
     if schedule.empty:
         raise ValueError(f"No trading days on or before {date}")
     return schedule.index.max().date()
-
 ''' Handle data prepending and/or appending '''
 def datapend(dateA, dateZ, tDateA, tDateZ, symbol):
     """
@@ -274,10 +261,9 @@ def datapend(dateA, dateZ, tDateA, tDateZ, symbol):
     os.makedirs("data", exist_ok=True)
     combined.to_csv(csv_path, index=False)
     print(f"Stitched 'cached data' with 'new/additional data'\nsaved @ {csv_path}")
-
 ''' Setup for updating EXISTING csv data'''
 def update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
-    print(f"Handling {symbol}.csv...")
+    print(f"\nHandling {symbol}.csv...")
     tDateA = get_next_trading_day(newDateA)
     tDateZ = get_last_trading_day(newDateZ)
     tDateA_str = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
@@ -332,10 +318,10 @@ def update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
                 if old_df is not None and anchor in old_df.index:
                     old_adj = float(old_df.loc[anchor, "Adj Close"])
                     delta = new_adj - old_adj
-                    print(f"Post-save check @ {anchor.date()}: old Adj={old_adj:.9f}, new Adj={new_adj:.9f}, Δ={delta:.9f}")
+                    print(f"\nPost-save check @ {anchor.date()}: old Adj={old_adj:.9f}, new Adj={new_adj:.9f}, Δ={delta:.9f}")
                 else:
-                    print(f"Post-save check @ {anchor.date()}: new Adj={new_adj:.9f}")
+                    print(f"\nPost-save check @ {anchor.date()}: new Adj={new_adj:.9f}")
             else:
-                print(f"Post-save check: anchor {anchor.date()} is not in the new CSV (start date changed).")
+                print(f"\nPost-save check: anchor {anchor.date()} is not in the new CSV (start date changed).")
         except Exception as e:
-            print(f"Post-save check skipped: {e}")
+            print(f"\nPost-save check skipped: {e}")

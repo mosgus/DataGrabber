@@ -1,9 +1,6 @@
 import time  # for sleep() aesthetic pauses
 import datetime
-from YF import (
-    get_tickers, validate_tickers, has_data, get_CSV_dates,
-    update_setup, validate_CSV_data, t0_interpret
-)
+from YF import (get_tickers, validate_tickers, has_data, get_CSV_dates,update_setup, validate_CSV_data, t0_interpret)
 
 def YF():
     # 1) Collect tickers and validate symbols
@@ -23,7 +20,7 @@ def YF():
             any_csv = True
             dateA, dateZ = get_CSV_dates(symbol)
             cached_ranges[symbol] = (dateA, dateZ)
-            print(f"Data from {dateA} to {dateZ} for {symbol}.csv exists in /data")
+            print(f"{dateA} to {dateZ} data for {symbol}.csv exists in /data")
 
             # validate & print comparison ONCE here
             is_valid = validate_CSV_data(dateA, dateZ, symbol)
@@ -71,4 +68,3 @@ def main():
 
 if __name__ == "__main__":
     YF()
-    # main()
