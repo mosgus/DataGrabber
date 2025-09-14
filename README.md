@@ -50,7 +50,7 @@ python -m pip install pandas_market_calendars
   ```
 
 ### Future Developments
-- **Performance**: 
+- **Functionality*: Allow for a single command line argument for getting and updating data
 
 ### Contributions
 Gunnar Balch: Designed and developed the DataGrabber lib, integrating APIs, writing scripts, and refining algorithms for efficient data aggregation.
