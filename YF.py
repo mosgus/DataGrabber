@@ -138,7 +138,6 @@ def validate_CSV_data(dateA, dateZ, symbol):
     start_date = pd.to_datetime(dateA)
     end_date = pd.to_datetime(dateZ)
 
-    # --- Just use dateA instead of multiple quarters ---
     check_date = pd.to_datetime(dateA).normalize()
     check_dates = pd.DatetimeIndex([check_date])
 
@@ -181,10 +180,10 @@ def validate_CSV_data(dateA, dateZ, symbol):
     all_match = bool(comparison.all())
 
     if all_match:
-        print(f"Data in {symbol}.csv is VALID by +/- {tolerance}.")
+        print(f"Adj_Price in {symbol}.csv is VALID by +/- {tolerance} minimum.")
         return True
     else: # Copy's old date as "<symbol>OLD.csv" and prepares new file.
-        print(f"Data in {symbol}.csv is NOT VALID by +/- {tolerance}.")
+        print(f"Adj_Price  in {symbol}.csv is OUTDATED by +/- {tolerance} minimum.")
         backup_path = cp_del(csv_path, symbol)
         print(f"Old data copied to {backup_path} and removed {csv_path}.")
         return False
@@ -208,11 +207,74 @@ def get_last_trading_day(date):
 
 ''' Handle data prepending and/or appending '''
 def datapend(dateA, dateZ, tDateA, tDateZ, symbol):
-    # TODO: Handle if dateA = tDateA or dateZ = tDateZ( this should be an exclusive or because if both A and Z is a previosly handled case)
-    # TODO: Basically if dateA = tDateA we probably only append,if dateZ = tDateZ we probably only prepend.
-    # TODO: If both are different we need to do both prepend and append.
-    # TODO: get a prepend_df and/or an append_df and then concat them to the existing csv_df and save it.
-    pass
+    """
+    Given the current CSV range [dateA, dateZ] and the desired trading-day-aligned
+    range [tDateA, tDateZ], fetch only the missing edges and stitch them onto the
+    existing CSV in /data/<symbol>.csv.
+
+    Cases:
+      - If dateA == tDateA and dateZ == tDateZ -> nothing to do (should be handled earlier).
+      - If dateA == tDateA -> append only.
+      - If dateZ == tDateZ -> prepend only.
+      - Else -> prepend and append.
+    """
+    csv_path = os.path.join("data", f"{symbol}.csv")
+    if not os.path.isfile(csv_path):
+        raise FileNotFoundError(f"Expected existing CSV at {csv_path}")
+
+    # Load existing file
+    csv_df = pd.read_csv(csv_path, parse_dates=["Date"])
+    csv_df = csv_df.sort_values("Date").reset_index(drop=True)
+
+    # Normalize inputs to strings (YYYY-MM-DD)
+    dateA = pd.to_datetime(dateA).strftime("%Y-%m-%d")
+    dateZ = pd.to_datetime(dateZ).strftime("%Y-%m-%d")
+    tDateA = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
+    tDateZ = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
+
+    need_prepend = (dateA != tDateA)
+    need_append  = (dateZ != tDateZ)
+
+    prepend_df = pd.DataFrame()
+    append_df  = pd.DataFrame()
+
+    #   yfinance 'end' is exclusive.
+    #   PREPEND: [tDateA, dateA-1]  -> fetch_data(symbol, tDateA, end_exclusive=dateA)
+    #   APPEND:  [dateZ+1, tDateZ]  -> fetch_data(symbol, start_inclusive=dateZ_plus1, end_exclusive=tDateZ_plus1)
+
+    if need_prepend:
+        end_exclusive = pd.to_datetime(dateA).strftime("%Y-%m-%d")
+        prepend_df = fetch_data(symbol, tDateA, end_exclusive)
+
+    if need_append:
+        start_inclusive = (pd.to_datetime(dateZ) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        end_exclusive = (pd.to_datetime(tDateZ) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        append_df = fetch_data(symbol, start_inclusive, end_exclusive)
+
+    # Normalize fetched frames to match CSV schema
+    def _tidy(df):
+        if df is None or df.empty:
+            return pd.DataFrame()
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df = df.reset_index()
+        cols = ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"]
+        keep = [c for c in cols if c in df.columns]
+        return df[keep]
+
+    prepend_df = _tidy(prepend_df)
+    append_df  = _tidy(append_df)
+
+    # Concatenate [prepend, existing, append], drop dups, sort, save back to /data/<symbol>.csv
+    combined = pd.concat([prepend_df, csv_df, append_df], ignore_index=True)
+    # Drop duplicate dates if any overlap occurred
+    if "Date" in combined.columns:
+        combined["Date"] = pd.to_datetime(combined["Date"])
+        combined = combined.sort_values("Date").drop_duplicates(subset=["Date"], keep="last")
+
+    os.makedirs("data", exist_ok=True)
+    combined.to_csv(csv_path, index=False)
+    print(f"Stitched 'cached data' with 'new/additional data'\n saved  @ {csv_path}")
 
 ''' Setup for updating EXISTING csv data'''
 def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
@@ -229,13 +291,13 @@ def update_setup(dateA, dateZ, newDateA, newDateZ, symbol):
         tDateZ_str = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
 
         if (dateA == tDateA_str and dateZ == tDateZ_str):
-            print(f"No update needed for {symbol}.csv. Dates match.")
+            print(f"\nNo update needed for {symbol}.csv. Dates match.")
             return
         else:
             print(f"\nGetting more data...")
             print(f"Next trade day from {newDateA} = {tDateA_str}.\nLast trade day from {newDateZ} = {tDateZ_str}.")
-            # TODO: Create datapend function to handle data to prepend and/or append
-
+            # Handle prepend/append as needed
+            datapend(dateA, dateZ, tDateA_str, tDateZ_str, symbol)
     else:
         ''' INVALID CSV DATA '''
         # also adjust dates when invalid

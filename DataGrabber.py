@@ -64,7 +64,7 @@ def YF():
                 update_setup(dateA, dateZ, newDateA, newDateZ, symbol)
 
     if not active_symbols:
-        print("done.\nExiting...")
+        print("\ndone.")
         return
 
     time.sleep(1)
