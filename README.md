@@ -4,9 +4,9 @@ A Python-based library of scripts for efficient data aggregation. Most API's tha
 🟣 A Yahoo Finance Data Grabber script can be used for downloading, validating, and maintaining historical stock data from Yahoo Finance. It ensures local CSV caches stay up-to-date, properly formatted, and consistent with Yahoo’s latest data (including dividend and split adjustments).
 
 ### Features ⛮
-- **Data Efficiency**:
-        - Existing CSVs in /data are reused and only missing ranges are fetched 🟣
-        - Old data is backed up to /data/<symbol>_OLD.csv before being replaced 🟣
++ **Data Efficiency**:
+        * Existing CSVs in /data are reused and only missing ranges are fetched 🟣
+        * Old data is backed up to /data/<symbol>_OLD.csv before being replaced 🟣
 - **Validation**:
         
            
