@@ -45,10 +45,8 @@ python -m pip install pandas_market_calendars
 
 
 ### How to Run
-Either simply run 
-- Example:
   ```bash
-  python YF.py
+  python DataGrabber.py
   ```
 
 ### Future Developments
