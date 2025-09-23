@@ -53,14 +53,13 @@ def YF():
         if symbol in cached_ranges:
             dateA, dateZ = cached_ranges[symbol]
         else:
-            # CHANGED: for symbols with no CSV, pass placeholders (will trigger full refresh)
             dateA, dateZ = newDateA, newDateA
 
         update_setup(
             dateA, dateZ,
             newDateA, newDateZ,
             symbol,
-            is_valid_map[symbol]  # CHANGED: tells update_setup if we had a valid cache or not
+            is_valid_map[symbol]
         )
 
 def main():

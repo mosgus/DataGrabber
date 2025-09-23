@@ -25,6 +25,22 @@ The **⚪️ Yahoo Finance Data Grabber ⚪️** script can be used for download
   
            
 ### Dependencies
+Conda 🐍
+```bash
+conda install -c conda-forge 
+conda install -c pandas 
+conda install -c numpy 
+conda install -c plotly 
+conda install -c kaleido 
+conda install -c pycountry
+conda install -c pandas-market-calendars 
+conda install -c streamlit 
+conda install -c yfinance 
+```
+```bash
+pip install eikon # not available on conda
+```
+
 Bash 🐧
 ```bash
 pip install --upgrade pip
@@ -33,6 +49,8 @@ pip install pandas
 pip install numpy
 pip install yfinance
 pip install pandas_market_calendars
+pip install eikon
+pip install streamlit
 ```
 PowerShell 📎
 ```powershell
@@ -41,6 +59,8 @@ python -m pip install pandas
 python -m pip install numpy
 python -m pip install yfinance
 python -m pip install pandas_market_calendars
+python -m pip install eikon
+python -m pip install streamlit
 ```
 
 
