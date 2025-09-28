@@ -23,7 +23,7 @@ The **⚪️ Yahoo Finance Data Grabber ⚪️** script can be used for download
   + Prevents invalid ranges (start > end) through CLI safeguards.  
 
 + **Command-Line Interface (CLI)** ◻️
-  + `python DataGrabber.py` → User is prompted for ticker, then date
+  + `python DataGrabber.py` → User is prompted for ticker, to update if outdated,then base date
   + `python YF.py <ticker>` → YTD data if missing, append-only if file exists.  
   + `python YF.py <ticker> <YYYY-MM-DD>` → fetches from custom start date if it doesn’t overlap CSV.  
   + Clear separation of **interactive mode** (via DataGrabber.py) vs. **direct calls** (for devs).  
@@ -35,7 +35,7 @@ The **⚪️ Yahoo Finance Data Grabber ⚪️** script can be used for download
 
 + **Extensible Design** ◻️  
   + Built for modular growth — future scripts for WRDS, AlphaVantage, Eikon, etc.  
-  + Consistent interface so both non-devs (via DataGrabber) and devs (via direct imports) can work efficiently.  
+  + Consistent interface so both non-devs (via DataGrabber) and devs (via one CL call) can work efficiently.  
   + Follows the principle of **minimizing API calls** without circumventing provider limits.  
   
            
