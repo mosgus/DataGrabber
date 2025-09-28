@@ -89,6 +89,13 @@ python -m pip install streamlit
   ```bash
   python YF.py <ticker> <YYYY-MM-DD>
   ```
+examples:
+  ```bash
+  python YF.py AAPL
+  ```
+  ```bash
+  python YF.py MSFT 2024-01-01
+  ```
 
 ### Future Developments
 - **Functionality**: Expand cached data usage. Currently if cached data is deemed 'invalid' due to Adj Close prices the cached data is ignored, instead of ignoring perhaps the new valid Adj Close can simply be calculated using the old data and new Adj data, without making a large API call to fill an empty dataframe.
