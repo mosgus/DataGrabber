@@ -101,7 +101,7 @@ examples:
 - **Functionality**: Expand cached data usage. Currently if cached data is deemed 'invalid' due to Adj Close prices the cached data is ignored, instead of ignoring perhaps the new valid Adj Close can simply be calculated using the old data and new Adj data, without making a large API call to fill an empty dataframe.
 
 ### Contributions
-Gus B. made DataGrabber suite, integrating APIs, writing scripts, and refining algorithms for efficient data aggregation.
+Gus made DataGrabber suite, integrating APIs, writing scripts, and refining algorithms for efficient data aggregation.
 
 
 
