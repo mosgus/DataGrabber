@@ -1,7 +1,7 @@
 # Data Grabber 📊🤛
 A Python(3.12)-based utility suite for efficient data aggregation. Most API's that handle large datasets have limits on the volume and quantity of API calls. DataGrabber scripts DO NOT circumvent these limits, but rather aims to minimize the volume/quantity of necessary API calls, maximizing the usage of the allocated calls. 
 
-The **⚪️ Yahoo Finance Data Grabber ⚪️** script can be used for downloading, validating, and maintaining historical stock data from Yahoo Finance. It ensures local CSV caches stay up-to-date, properly formatted, and consistent with Yahoo’s latest data (including dividend and split adjustments). 
+The **⚪️ Yahoo Finance Data Grabber ⚪️** script can be used for downloading, validating, and maintaining historical stock data from Yahoo Finance. It ensures local CSV caches (in /data) stay up-to-date, properly formatted, and consistent with Yahoo’s latest data (including dividend and split adjustments). 
 
 ### Features ⛮  
 
@@ -80,6 +80,7 @@ python -m pip install streamlit
 
 
 ### How to Run
+  Note: cached data must be in /data to be validated/updated.
   ```bash
   python DataGrabber.py
   ```
@@ -98,7 +99,8 @@ examples:
   ```
 
 ### Future Developments
-- **Functionality**: Expand cached data usage. Currently if cached data is deemed 'invalid' due to Adj Close prices the cached data is ignored, instead of ignoring perhaps the new valid Adj Close can simply be calculated using the old data and new Adj data, without making a large API call to fill an empty dataframe.
+- **Functionality**: Expand cached data usage. Currently, if cached data is deemed 'invalid' due to Adj Close prices the it is ignored. Instead of ignoring, perhaps the new valid Adj Close can be calculated using the old data and new Adj data, without making a large API call to fill an empty dataframe.
+- **Modular Growth**: Build scripts for other data APIs like WRDS, WITS, LSEG/Eikon, WHO, Alphavantage, etc.
 
 ### Contributions
 Gus made DataGrabber suite, integrating APIs, writing scripts, and refining algorithms for efficient data aggregation.
