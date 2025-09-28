@@ -3,25 +3,40 @@ A Python(3.12)-based utility suite for efficient data aggregation. Most API's th
 
 The **⚪️ Yahoo Finance Data Grabber ⚪️** script can be used for downloading, validating, and maintaining historical stock data from Yahoo Finance. It ensures local CSV caches stay up-to-date, properly formatted, and consistent with Yahoo’s latest data (including dividend and split adjustments). 
 
-### Features ⛮
-+ **Data Efficiency** ◻️
-  + Existing CSVs in /data are reused and only missing ranges of data are fetched.
-  + New data getes prepended and/or appended to existing data from the CSV file.
-+ **Validation** ◻️
-  + Compares cached data against fresh data from on-the-spot API queries.
-  + Accounts for splits' and dividends' ability to affect prices
-  + If CSV data is **validated** as being "reusable" for current/relevant data(Adj Close price Δ of stocks), then depending on the user's desired time frame, dataframes of fresh data can be prepended and/or appended to data originating from the validated CSV file.
-  + If CSV data is **invalidated** as being "outdated" for current/relevant data(Adj Close price Δ of stocks).
-  + "Outdated" data is backed up as /data/name_OLD.csv before being replaced with /data/name.csv with new validated data.
-+ **Trade Day Awareness** ◻️
-  + User-entered dates (even weekends/holidays) are adjusted to valid trading days.
-+ **Flexible Input** ◻️
-  + Inputs like '24 1 1' → 2024-01-01 & '99 12 31' → 1999-12-31 can be used for specifying dates.
-+ **Safe Updates** ◻️
-  + If the CSV is valid and entered dates match the dates of the file → no update.
-  + If the CSV is valid and entered dates offer a wider range → only missing data is stitched.
-  + If the CSV is invalid or missing → a fresh download made it.
-    
+### Features ⛮  
+
++ **Validation** ◻️  
+  + Compares cached data against fresh API pulls for consistency.  
+  + Detects the impact of **splits** and **dividends** on price history.  
+  + Marks CSVs as **reusable** or **outdated** based on `Adj Close` deltas.  
+  + Outdated CSVs are backed up (`/data/name_OLD.csv`) before replacement.  
+
++ **Safe Updates** ◻️  
+  + Reuses existing CSVs in `/data` instead of overwriting.  
+  + Fetches and stitches only the **missing ranges** of data.  
+  + Prepends or appends new data without disrupting valid rows.  
+  + Skips unnecessary updates when CSV dates fully match request.  
+
++ **Dynamic Date Handling** ◻️  
+  + Supports **flexible user input** (YTD, explicit start date, etc.).  
+  + Ensures proper **trading-day alignment** using `get_next_trading_day` and `get_last_trading_day`.  
+  + Prevents invalid ranges (start > end) through CLI safeguards.  
+
++ **Command-Line Interface (CLI)** ◻️
+  + `python DataGrabber.py` → User is prompted for ticker, then date
+  + `python YF.py <ticker>` → YTD data if missing, append-only if file exists.  
+  + `python YF.py <ticker> <YYYY-MM-DD>` → fetches from custom start date if it doesn’t overlap CSV.  
+  + Clear separation of **interactive mode** (via DataGrabber.py) vs. **direct calls** (for devs).  
+
++ **Caching & Backup** ◻️  
+  + All datasets saved locally in `/data/`.  
+  + Automatic **backup of old data** before replacement.  
+  + Cached data validated before being reused.  
+
++ **Extensible Design** ◻️  
+  + Built for modular growth — future scripts for WRDS, AlphaVantage, Eikon, etc.  
+  + Consistent interface so both non-devs (via DataGrabber) and devs (via direct imports) can work efficiently.  
+  + Follows the principle of **minimizing API calls** without circumventing provider limits.  
   
            
 ### Dependencies
@@ -68,12 +83,18 @@ python -m pip install streamlit
   ```bash
   python DataGrabber.py
   ```
+  ```bash
+  python YF.py <ticker>
+  ```
+  ```bash
+  python YF.py <ticker> <YYYY-MM-DD>
+  ```
 
 ### Future Developments
-- **Functionality**: Allow for a single command line argument for getting and updating data
+- **Functionality**: Expand cached data usage. Currently if cached data is deemed 'invalid' due to Adj Close prices the cached data is ignored, instead of ignoring perhaps the new valid Adj Close can simply be calculated using the old data and new Adj data, without making a large API call to fill an empty dataframe.
 
 ### Contributions
-Gus B. made DataGrabber lib, integrating APIs, writing scripts, and refining algorithms for efficient data aggregation.
+Gus B. made DataGrabber suite, integrating APIs, writing scripts, and refining algorithms for efficient data aggregation.
 
 
 
