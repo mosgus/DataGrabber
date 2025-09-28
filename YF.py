@@ -174,7 +174,7 @@ def validate_CSV_data(dateA, dateZ, symbol):
         print(f"\nAdj_Price in {symbol}.csv is VALID by +/- {tolerance} minimum.")
         return True
     else: # Copy's old date as "<symbol>OLD.csv" and prepares new file.
-        print(f"\nAdj_Price  in {symbol}.csv is OUTDATED by +/- {tolerance} minimum.")
+        print(f"\nAdj_Price in {symbol}.csv is OUTDATED by +/- {tolerance} minimum.")
         return False
 ''' Get next trading day after given date '''
 import pandas_market_calendars as mcal
@@ -259,7 +259,7 @@ def datapend(dateA, dateZ, tDateA, tDateZ, symbol):
         combined = combined.sort_values("Date").drop_duplicates(subset=["Date"], keep="last")
 
     os.makedirs("data", exist_ok=True)
-    combined.to_csv(csv_path, index=False)
+    combined.to_csv(csv_path, index=False, float_format="%.6f")
     print(f"Stitched 'cached data' with 'new/additional data'\nsaved @ {csv_path}")
 ''' Setup for updating EXISTING csv data'''
 def update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
@@ -325,3 +325,177 @@ def update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
                 print(f"\nPost-save check: anchor {anchor.date()} is not in the new CSV (start date changed).")
         except Exception as e:
             print(f"\nPost-save check skipped: {e}")
+# =========================
+# CLI entrypoint (non-breaking)
+# =========================
+import argparse
+
+def m_parse_cli_args():
+    p = argparse.ArgumentParser(
+        prog="YF.py",
+        description="Yahoo Finance data grabber: single-ticker CLI mode."
+    )
+    p.add_argument("ticker", help="Ticker symbol, e.g., NVDA")
+    p.add_argument(
+        "start_date",
+        nargs="?",
+        help="Optional start date YYYY-MM-DD. If omitted, uses YTD only when no CSV exists; otherwise append-only."
+    )
+    return p.parse_args()
+
+def m_ytd_start_today():
+    today = datetime.datetime.today().date()
+    ytd_start = datetime.date(today.year, 1, 1)
+    end = today - datetime.timedelta(days=1)
+    return ytd_start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+
+def m_normalize_start_date(start_date_str):
+    dt = t0_interpret(start_date_str)
+    return dt.strftime("%Y-%m-%d")
+
+def m_cli_update_one(ticker, start_date_opt):
+    valid, invalid = validate_tickers([ticker.upper()])
+    if not valid:
+        print("No valid symbols. Exiting.")
+        return
+    symbol = valid[0]
+
+    csv_exists = has_data(symbol)
+    if csv_exists:
+        # Existing CSV: only append from last CSV date + 1 to last trading day
+        dateA, dateZ = get_CSV_dates(symbol)
+        is_valid_cached = True  # leverage your existing CSV validation upstream if desired
+
+        if start_date_opt:
+            # Rule 2 in your spec: only update if the provided start does NOT overlap CSV.
+            newDateA = m_normalize_start_date(start_date_opt)
+            if newDateA <= dateZ:
+                print(
+                    f"Requested start {newDateA} overlaps existing {symbol}.csv range "
+                    f"[{dateA}..{dateZ}]. Skipping update."
+                )
+                return
+            newDateZ = (datetime.datetime.today().date() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+            # Use m_update_setup to guard against accidental prepend
+            m_update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached)
+        else:
+            # No explicit start given: DO NOT use YTD. Append only.
+            newDateA = (pd.to_datetime(dateZ) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+            newDateZ = (datetime.datetime.today().date() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+            m_update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached)
+    else:
+        # No CSV yet: use start_date if provided; else YTD
+        if start_date_opt:
+            newDateA = m_normalize_start_date(start_date_opt)
+        else:
+            newDateA, _ytdZ = m_ytd_start_today()
+        newDateZ = (datetime.datetime.today().date() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+        # No cached file exists, so tell updater to do a full grab
+        # We pass dateA/dateZ as equal to newDateA so m_update_setup treats as fresh
+        m_update_setup(newDateA, newDateA, newDateA, newDateZ, symbol, is_valid_cached=False)
+
+# --- m_* copies that are safer for CLI append-only semantics ---
+
+def m_update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
+    """
+    Safer wrapper that only prepends when new target start < existing dateA,
+    and only appends when new target end > existing dateZ.
+    """
+    print(f"\nHandling {symbol}.csv...")
+    tDateA = get_next_trading_day(newDateA)
+    tDateZ = get_last_trading_day(newDateZ)
+    tDateA_str = pd.to_datetime(tDateA).strftime("%Y-%m-%d")
+    tDateZ_str = pd.to_datetime(tDateZ).strftime("%Y-%m-%d")
+
+    if is_valid_cached:
+        if (dateA == tDateA_str and dateZ == tDateZ_str):
+            print(f"No update needed for {symbol}.csv. Dates match.")
+            return
+        else:
+            print(f"\nGetting more data...")
+            print(f"Next trade day from {newDateA} = {tDateA_str}.\nLast trade day from {newDateZ} = {tDateZ_str}.")
+            m_datapend(dateA, dateZ, tDateA_str, tDateZ_str, symbol)
+    else:
+        print(f"Fetching NEW {symbol} data from {tDateA_str} to {tDateZ_str}...")
+        end_exclusive = (pd.to_datetime(tDateZ_str) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        df_new = fetch_data(symbol, tDateA_str, end_exclusive)
+
+        if df_new is None or df_new.empty:
+            print(f"No data returned for {symbol} in requested range. Nothing saved.")
+            return
+
+        # Save fresh file using your existing normalizer and saver
+        if isinstance(df_new.columns, pd.MultiIndex):
+            df_new.columns = df_new.columns.get_level_values(0)
+        df_new = df_new.reset_index()
+        cols = ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"]
+        keep = [c for c in cols if c in df_new.columns]
+        df_new = df_new[keep]
+        save_data(df_new, symbol)
+
+def m_datapend(dateA, dateZ, tDateA, tDateZ, symbol):
+    """
+    Safer datapend:
+      - Only prepend if tDateA < dateA
+      - Only append  if tDateZ > dateZ
+    Prevents reversed ranges like start > end.
+    """
+    csv_path = os.path.join("data", f"{symbol}.csv")
+    if not os.path.isfile(csv_path):
+        raise FileNotFoundError(f"Expected existing CSV at {csv_path}")
+
+    csv_df = pd.read_csv(csv_path, parse_dates=["Date"]).sort_values("Date").reset_index(drop=True)
+
+    dateA = pd.to_datetime(dateA)
+    dateZ = pd.to_datetime(dateZ)
+    tDateA = pd.to_datetime(tDateA)
+    tDateZ = pd.to_datetime(tDateZ)
+
+    need_prepend = tDateA < dateA
+    need_append  = tDateZ > dateZ
+
+    prepend_df = pd.DataFrame()
+    append_df  = pd.DataFrame()
+
+    if need_prepend:
+        end_exclusive = (dateA).strftime("%Y-%m-%d")
+        prepend_df = fetch_data(symbol, tDateA.strftime("%Y-%m-%d"), end_exclusive)
+
+    if need_append:
+        start_inclusive = (dateZ + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        end_exclusive   = (tDateZ + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        append_df = fetch_data(symbol, start_inclusive, end_exclusive)
+
+    def _tidy(df):
+        if df is None or df.empty:
+            return pd.DataFrame()
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df = df.reset_index()
+        cols = ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"]
+        keep = [c for c in cols if c in df.columns]
+        return df[keep]
+
+    prepend_df = _tidy(prepend_df)
+    append_df  = _tidy(append_df)
+
+    # Merge parts
+    combined = pd.concat([prepend_df, csv_df, append_df], ignore_index=True)
+    if "Date" in combined.columns:
+        combined["Date"] = pd.to_datetime(combined["Date"])
+        combined = combined.sort_values("Date").drop_duplicates(subset=["Date"], keep="last")
+
+    os.makedirs("data", exist_ok=True)
+    combined.to_csv(csv_path, index=False)
+    print(f"Stitched 'cached data' with 'new/additional data'\nsaved @ {csv_path}")
+
+def m_main_cli():
+    import sys
+    if len(sys.argv) <= 1:
+        return
+    args = m_parse_cli_args()
+    m_cli_update_one(args.ticker, args.start_date)
+
+if __name__ == "__main__":
+    m_main_cli()
