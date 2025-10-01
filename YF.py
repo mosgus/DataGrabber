@@ -23,7 +23,7 @@ def get_tickers():
     return ticker_list
 ''' date inputs'''
 def t0_interpret(t0_str):
-    t0_str = t0_str.replace(' ', '-')
+    t0_str = t0_str.replace('/', '-').replace(' ', '-')
     parts = t0_str.split('-')
     if len(parts) == 3 and len(parts[0]) == 2:
         year = int(parts[0])
@@ -369,12 +369,13 @@ def m_cli_update_one(ticker, start_date_opt):
         if start_date_opt:
             # Rule 2 in your spec: only update if the provided start does NOT overlap CSV.
             newDateA = m_normalize_start_date(start_date_opt)
-            if newDateA <= dateZ:
+            if dateA <= newDateA <= dateZ:
                 print(
                     f"Requested start {newDateA} overlaps existing {symbol}.csv range "
                     f"[{dateA}..{dateZ}]. Skipping update."
                 )
                 return
+
             newDateZ = (datetime.datetime.today().date() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
             # Use m_update_setup to guard against accidental prepend
             m_update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached)
