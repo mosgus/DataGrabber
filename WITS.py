@@ -226,19 +226,35 @@ def http_get_json(url: str, params: Optional[Dict[str, object]] = None, timeout:
 # WITS URL builders (adjust to official API)
 # -------------------------------
 
-def build_trade_url(year: int, importer: str, partner: str, hs: Optional[HSProduct]) -> str:
-    """Example route; adjust to actual WITS API shape you adopt."""
-    # Example used in planning: https://wits.worldbank.org/API/V1/HS/{year}/{importer}/{partner}/{hs_code}
-    hs_code = hs.code if hs else "ALL"
-    return f"https://wits.worldbank.org/API/V1/HS/{year}/{importer}/{partner}/{hs_code}"
+def build_trade_url(year: int, importer: str, partner: str, hs: Optional[HSProduct], indicator: str) -> str:
+    """
+    Build a tradestats-trade URL (SDMX V21 'datasource' style).
+    - indicator: MPRT-TRD-VL (imports) or XPRT-TRD-VL (exports), etc.
+    - product: use 'ALL' for reliable starts (WITS allows ALL with specific reporter/partner).
+      You can later map HS to WITS product groups if desired.
+    """
+    product = "ALL" if hs is None else "ALL"  # keep ALL for a working start
+    return (
+        "https://wits.worldbank.org/API/V1/SDMX/V21/datasource/tradestats-trade/"
+        f"reporter/{importer.lower()}/year/{year}/partner/{(partner or 'wld').lower()}/"
+        f"product/{product}/indicator/{indicator}"
+    )
 
 
-def build_tariff_url(year: int, importer: str, partner: Optional[str], hs: Optional[HSProduct]) -> str:
-    # Placeholder; replace with official tariff endpoint route
-    hs_code = hs.code if hs else "ALL"
-    partner_part = partner or "ALL"
-    return f"https://wits.worldbank.org/API/V1/TARIFF/{year}/{importer}/{partner_part}/{hs_code}"
-
+def build_tariff_url(year: int, importer: str, partner: Optional[str], hs: Optional[HSProduct], indicator: str) -> str:
+    """
+    Build a tradestats-tariff URL (SDMX V21 'datasource' style).
+    For a working default, use partner=WLD and product=fuels (doc example). You can generalize later.
+    """
+    partner_part = (partner or "WLD").lower()
+    # For a guaranteed starter call, set product to 'fuels' (works in docs);
+    # once you’re ready, wire hs -> a valid WITS product grouping.
+    product = "fuels"
+    return (
+        "https://wits.worldbank.org/API/V1/SDMX/V21/datasource/tradestats-tariff/"
+        f"reporter/{importer.lower()}/year/{year}/partner/{partner_part}/"
+        f"product/{product}/indicator/{indicator}"
+    )
 # -------------------------------
 # Tidy conversion helpers
 # -------------------------------
@@ -312,7 +328,9 @@ def fetch_trade(importer: str, partner: Optional[str], hs: Optional[HSProduct], 
     for y in ylist:
         url = build_trade_url(y, importer, partner or "ALL", hs)
         log(f"GET {url}")
-        raw = http_get_json(url)
+
+        raw = http_get_json(url, params={"format": "JSON"})
+
         meta_with_year = dict(meta)
         meta_with_year["year"] = y
         rows = tidy_trade_json(raw, meta_with_year)
@@ -331,7 +349,9 @@ def fetch_tariffs(importer: str, partner: Optional[str], hs: Optional[HSProduct]
     for y in ylist:
         url = build_tariff_url(y, importer, partner, hs)
         log(f"GET {url}")
-        raw = http_get_json(url)
+
+        raw = http_get_json(url, params={"format": "JSON"})
+
         meta_with_year = dict(meta)
         meta_with_year["year"] = y
         rows = tidy_tariff_json(raw, meta_with_year)
@@ -358,8 +378,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     # Allow both --exporter and --partner as synonyms
     p.add_argument("--exporter", type=str, help="Partner country (ISO3 or name)")
     p.add_argument("--partner", type=str, help="Partner country (alias for --exporter)")
-
     p.add_argument("--product", type=str, help="HS code filter. Accepts HS_85, 85, 8501, 850110")
+
     p.add_argument("--indicator", type=str, default="TradeValue", help="Indicator to retrieve (if applicable)")
 
     p.add_argument("--year", type=int, help="Single year")
