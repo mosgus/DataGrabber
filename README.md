@@ -99,7 +99,7 @@ examples:
   ```
 
 ### Future Developments
-- **Functionality**: Expand cached data usage. Currently, if cached data is deemed 'invalid' due to Adj Close prices the it is ignored. Instead of ignoring, perhaps the new valid Adj Close can be calculated using the old data and new Adj data, without making a large API call to fill an empty dataframe.
+- **Functionality**: Expand cached data usage. Currently, if cached data is deemed 'invalid' due to Adj Close prices it's ignored. Instead of ignoring, perhaps the new valid Adj Close can be calculated using the old data and new Adj data, without making a large API call to fill an empty dataframe.
 - **Modular Growth**: Build scripts for other data APIs like WRDS, WITS, LSEG/Eikon, WHO, Alphavantage, etc.
 
 ### Contributions
