@@ -225,7 +225,6 @@ def http_get_json(url: str, params: Optional[Dict[str, object]] = None, timeout:
 # -------------------------------
 # WITS URL builders (adjust to official API)
 # -------------------------------
-
 def build_trade_url(year: int, importer: str, partner: str, hs: Optional[HSProduct], indicator: str) -> str:
     """
     Build a tradestats-trade URL (SDMX V21 'datasource' style).
@@ -239,8 +238,6 @@ def build_trade_url(year: int, importer: str, partner: str, hs: Optional[HSProdu
         f"reporter/{importer.lower()}/year/{year}/partner/{(partner or 'wld').lower()}/"
         f"product/{product}/indicator/{indicator}"
     )
-
-
 def build_tariff_url(year: int, importer: str, partner: Optional[str], hs: Optional[HSProduct], indicator: str) -> str:
     """
     Build a tradestats-tariff URL (SDMX V21 'datasource' style).
@@ -260,13 +257,9 @@ def build_tariff_url(year: int, importer: str, partner: Optional[str], hs: Optio
 # -------------------------------
 
 def tidy_trade_json(raw: dict, meta: Dict[str, object]) -> List[Dict[str, object]]:
-    """Transform raw JSON into a list of flat dict rows.
-    This depends on the real WITS payload. Adjust field extraction accordingly.
-    """
     rows: List[Dict[str, object]] = []
-    data = raw if isinstance(raw, list) else raw.get("data") or raw.get("value") or []
+    data = raw if isinstance(raw, list) else raw.get("data") or raw.get("value") or raw.get("Data") or raw.get("series") or []
     for item in data:
-        # The following keys are placeholders. Update to match WITS response keys.
         rows.append({
             "year": item.get("Year") or meta.get("year"),
             "flow": meta.get("flow"),
@@ -279,23 +272,24 @@ def tidy_trade_json(raw: dict, meta: Dict[str, object]) -> List[Dict[str, object
         })
     return rows
 
-
 def tidy_tariff_json(raw: dict, meta: Dict[str, object]) -> List[Dict[str, object]]:
     rows: List[Dict[str, object]] = []
-    data = raw if isinstance(raw, list) else raw.get("data") or raw.get("value") or []
+    data = raw if isinstance(raw, list) else raw.get("data") or raw.get("value") or raw.get("Data") or raw.get("series") or []
     for item in data:
         rows.append({
             "year": item.get("Year") or meta.get("year"),
             "importer": item.get("Reporter") or meta.get("importer"),
             "partner": item.get("Partner") or meta.get("partner"),
             "hs_code": item.get("CommodityCode") or meta.get("hs_code"),
-            "mfn_simple_avg": item.get("MFN_Avg") or item.get("SimpleAverage") or item.get("MFN_Simple_Average"),
-            "pref_simple_avg": item.get("Preferential_Avg"),
-            "num_lines": item.get("NumLines") or item.get("NumberOfTariffLines"),
-            "min_tariff": item.get("MinRate"),
-            "max_tariff": item.get("MaxRate"),
+            "mfn_simple_avg": item.get("MFN_SimpleAverage") or item.get("MFNRate"),
+            "pref_simple_avg": item.get("Pref_SimpleAverage") or item.get("PrefRate"),
+            "num_lines": item.get("NumLines"),
+            "min_tariff": item.get("MinTariff"),
+            "max_tariff": item.get("MaxTariff"),
         })
     return rows
+
+
 
 # -------------------------------
 # Summarization utilities
@@ -318,7 +312,7 @@ def top_by_value(rows: List[Dict[str, object]], group_key: str, k: int = 10) -> 
 # Core fetchers
 # -------------------------------
 
-def fetch_trade(importer: str, partner: Optional[str], hs: Optional[HSProduct], years: List[int], flow: str, limit: int) -> Tuple[List[Dict[str, object]], Dict[str, object]]:
+def fetch_trade(importer: str, partner: Optional[str], hs: Optional[HSProduct], years: List[int], flow: str, limit: int, indicator: str) -> Tuple[List[Dict[str, object]], Dict[str, object]]:
     all_rows: List[Dict[str, object]] = []
     meta = {"flow": flow, "importer": importer, "partner": partner or "ALL", "hs_code": hs.code if hs else "ALL"}
     ylist = years or []
@@ -326,9 +320,8 @@ def fetch_trade(importer: str, partner: Optional[str], hs: Optional[HSProduct], 
         # If "latest" requested, define your logic here; for now pick current year - 1
         ylist = [datetime.now().year - 1]
     for y in ylist:
-        url = build_trade_url(y, importer, partner or "ALL", hs)
+        url = build_trade_url(y, importer, partner or "WLD", hs, indicator)
         log(f"GET {url}")
-
         raw = http_get_json(url, params={"format": "JSON"})
 
         meta_with_year = dict(meta)
@@ -342,14 +335,13 @@ def fetch_trade(importer: str, partner: Optional[str], hs: Optional[HSProduct], 
     return all_rows, {"kind": "trade", **meta}
 
 
-def fetch_tariffs(importer: str, partner: Optional[str], hs: Optional[HSProduct], years: List[int], limit: int) -> Tuple[List[Dict[str, object]], Dict[str, object]]:
+def fetch_tariffs(importer: str, partner: Optional[str], hs: Optional[HSProduct], years: List[int], limit: int, indicator: str) -> Tuple[List[Dict[str, object]], Dict[str, object]]:
     all_rows: List[Dict[str, object]] = []
     meta = {"importer": importer, "partner": partner or "ALL", "hs_code": hs.code if hs else "ALL"}
     ylist = years or [datetime.now().year - 1]
     for y in ylist:
-        url = build_tariff_url(y, importer, partner, hs)
+        url = build_tariff_url(y, importer, partner, hs, indicator)
         log(f"GET {url}")
-
         raw = http_get_json(url, params={"format": "JSON"})
 
         meta_with_year = dict(meta)
@@ -380,7 +372,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--partner", type=str, help="Partner country (alias for --exporter)")
     p.add_argument("--product", type=str, help="HS code filter. Accepts HS_85, 85, 8501, 850110")
 
-    p.add_argument("--indicator", type=str, default="TradeValue", help="Indicator to retrieve (if applicable)")
+    p.add_argument("--indicator", type=str, default=None, help="Indicator code (e.g., MPRT-TRD-VL, XPRT-TRD-VL, AHS-SMPL-AVRG)")
 
     p.add_argument("--year", type=int, help="Single year")
     p.add_argument("--years", type=str, help="Comma-separated list of years")
@@ -413,12 +405,22 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("--importer is required", file=sys.stderr)
         return 2
 
+    # Normalize CLI arguments before using them
     importer = normalize_country(args.importer)
     partner_arg = args.partner or args.exporter
     partner = normalize_country(partner_arg) if partner_arg else None
-
     hs = normalize_product(args.product)
     ys = normalize_years(args.year, args.years, args.start, args.end, args.latest)
+
+    # Choose a default indicator if not provided
+    indicator = args.indicator
+
+    if mode == "trade":
+        if not indicator:
+            indicator = "MPRT-TRD-VL" if flow == "imports" else "XPRT-TRD-VL"
+    else:
+        if not indicator:
+            indicator = "AHS-SMPL-AVRG"
 
     # Compose key for caching
     keydict = {
@@ -428,7 +430,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "partner": partner or "ALL",
         "product": asdict(hs) if hs else None,
         "years": ys.years,
-        "indicator": args.indicator,
+        "indicator": indicator,
     }
 
     json_path, csv_path = cache_paths(mode, keydict)
@@ -441,13 +443,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         raw = read_json(json_path)
         rows = raw.get("rows", [])
         meta = raw.get("meta", {})
+
     else:
         if mode == "trade":
-            rows, meta = fetch_trade(importer, partner, hs, ys.years, flow, args.limit)
+            rows, meta = fetch_trade(importer, partner, hs, ys.years, flow, args.limit, indicator)
         else:
-            rows, meta = fetch_tariffs(importer, partner, hs, ys.years, args.limit)
+            rows, meta = fetch_tariffs(importer, partner, hs, ys.years, args.limit, indicator)
 
-        # Save cache artifacts
         write_json(json_path, {"meta": meta, "rows": rows})
         # Define tidy CSV columns
         if mode == "trade":
@@ -466,12 +468,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         write_csv(out_csv, rows, [k for k in rows[0].keys()] if rows else [])
     if args.format in ("json", "both") and json_path != out_json:
         write_json(out_json, {"meta": meta, "rows": rows})
-
-    # Human-readable header
-    if mode == "trade":
-        log(f"Trade fetch complete. Flow: {meta.get('flow')}. Importer: {meta.get('importer')}. Partner: {meta.get('partner')}. Product: {meta.get('hs_code')}. Years: {ys.years or ['latest']}.")
-    else:
-        log(f"Tariff fetch complete. Importer: {meta.get('importer')}. Partner: {meta.get('partner')}. Product: {meta.get('hs_code')}. Years: {ys.years or ['latest']}.")
 
     # Optional summaries (trade only)
     if args.summarize and mode == "trade":
