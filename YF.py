@@ -74,10 +74,10 @@ def validate_tickers(symbols):
 def has_data(symbol):
     #filename = os.path.join("data", f"{symbol}.csv")
     #return os.path.isfile(filename)
-    return os.path.isfile(os.path.join("data", f"{symbol}.csv"))
+    return os.path.isfile(os.path.join("data/yf", f"{symbol}.csv"))
 ''' Fetch date range for EXISTING ticker '''
 def get_CSV_dates(symbol):
-    filename = os.path.join("data", f"{symbol}.csv")
+    filename = os.path.join("data/yf", f"{symbol}.csv")
     df = pd.read_csv(filename)
     df['Date'] = pd.to_datetime(df['Date'])
     t0 = df['Date'].min().strftime("%Y-%m-%d")
@@ -99,8 +99,9 @@ def save_data(df, symbol):
         df = df[keep]
 
         os.makedirs("data", exist_ok=True)
-        filename = os.path.join("data", f"{symbol}.csv")
-        tmpname = os.path.join("data", f".{symbol}.csv.tmp")
+        os.makedirs("data/yf", exist_ok=True)
+        filename = os.path.join("data/yf", f"{symbol}.csv")
+        tmpname = os.path.join("data/yf", f".{symbol}.csv.tmp")
 
         # Write with high precision so 1e-5 deltas survive round-trip
         df.to_csv(tmpname, index=False, header=True, float_format="%.14f")
@@ -176,6 +177,7 @@ def validate_CSV_data(dateA, dateZ, symbol):
     else: # Copy's old date as "<symbol>OLD.csv" and prepares new file.
         print(f"\nAdj_Price in {symbol}.csv is OUTDATED by +/- {tolerance} minimum.")
         return False
+
 ''' Get next trading day after given date '''
 import pandas_market_calendars as mcal
 nyse = mcal.get_calendar("NYSE")
@@ -261,6 +263,7 @@ def datapend(dateA, dateZ, tDateA, tDateZ, symbol):
     os.makedirs("data", exist_ok=True)
     combined.to_csv(csv_path, index=False, float_format="%.6f")
     print(f"Stitched 'cached data' with 'new/additional data'\nsaved @ {csv_path}")
+
 ''' Setup for updating EXISTING csv data'''
 def update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
     print(f"\nHandling {symbol}.csv...")
@@ -325,9 +328,10 @@ def update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
                 print(f"\nPost-save check: anchor {anchor.date()} is not in the new CSV (start date changed).")
         except Exception as e:
             print(f"\nPost-save check skipped: {e}")
-# =========================
-# CLI entrypoint (non-breaking)
-# =========================
+
+''' # ============================= #
+    #         CLI entrypoint        #
+    # ============================= #    '''
 import argparse
 
 def m_parse_cli_args():
@@ -366,8 +370,16 @@ def m_cli_update_one(ticker, start_date_opt):
         dateA, dateZ = get_CSV_dates(symbol)
         is_valid_cached = True  # leverage your existing CSV validation upstream if desired
 
-        if start_date_opt:
-            # Rule 2 in your spec: only update if the provided start does NOT overlap CSV.
+        if not start_date_opt: # when no base date given
+            last_trading_day = get_last_trading_day(datetime.datetime.today().date() - datetime.timedelta(days=1))
+            if pd.to_datetime(dateZ).date() >= last_trading_day:
+                print(f"No update needed for {symbol}.csv. Already up to last trading day ({last_trading_day}).")
+                return
+            newDateA = (pd.to_datetime(dateZ) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+            newDateZ = (datetime.datetime.today().date() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+            m_update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached)
+
+        if start_date_opt: # when base date given
             newDateA = m_normalize_start_date(start_date_opt)
             if dateA <= newDateA <= dateZ:
                 print(
@@ -375,6 +387,7 @@ def m_cli_update_one(ticker, start_date_opt):
                     f"[{dateA}..{dateZ}]. Skipping update."
                 )
                 return
+
 
             newDateZ = (datetime.datetime.today().date() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
             # Use m_update_setup to guard against accidental prepend
@@ -395,8 +408,6 @@ def m_cli_update_one(ticker, start_date_opt):
         # No cached file exists, so tell updater to do a full grab
         # We pass dateA/dateZ as equal to newDateA so m_update_setup treats as fresh
         m_update_setup(newDateA, newDateA, newDateA, newDateZ, symbol, is_valid_cached=False)
-
-# --- m_* copies that are safer for CLI append-only semantics ---
 
 def m_update_setup(dateA, dateZ, newDateA, newDateZ, symbol, is_valid_cached):
     """
@@ -442,7 +453,7 @@ def m_datapend(dateA, dateZ, tDateA, tDateZ, symbol):
       - Only append  if tDateZ > dateZ
     Prevents reversed ranges like start > end.
     """
-    csv_path = os.path.join("data", f"{symbol}.csv")
+    csv_path = os.path.join("data/yf", f"{symbol}.csv")
     if not os.path.isfile(csv_path):
         raise FileNotFoundError(f"Expected existing CSV at {csv_path}")
 
@@ -497,6 +508,5 @@ def m_main_cli():
         return
     args = m_parse_cli_args()
     m_cli_update_one(args.ticker, args.start_date)
-
 if __name__ == "__main__":
     m_main_cli()
